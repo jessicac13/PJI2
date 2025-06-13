@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Monitoramento ESP32 - PJI2</title>
+  <link rel="icon" href="https://via.placeholder.com/32/4CAF50/2E5A88?text=EC" type="image/x-icon">
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      position: relative; /* Para posicionamento da logo */
+      font-family: Arial, sans-serif;
+      background: #ffffff;
+      padding: 20px;
+    }
+    h2 {
+      color: #000000;
+      margin-top: 30px;
+    }
+    .box {
+      background: #fff;
+      border: 2px solid #ffffff;
+      border-radius: 10px;
+      padding: 15px;
+      margin-top: 10px;
+      max-height: 300px;
+      overflow-y: auto;
+      box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+    }
+    .sdBox {
+      background-color: #ffffff;
+    }
+    .sdBox h3 {
+      color: #000000;
+      margin-bottom: 10px;
+    }
+    .dataBox p {
+      margin: 0;
+      padding: 3px;
+      border-bottom: 1px solid #36890f;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid #36890f;
+      padding: 6px 8px;
+      text-align: center;
+    }
+    th {
+      background-color: #36890f;
+      color: #ffffff;
+    }
+    canvas {
+      background: #ffffff;
+      border-radius: 8px;
+      margin-top: 20px;
+      box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    /* Logo posicionada no canto superior direito */
+    .logo {
+      position: absolute;
+      top: 1px;
+      right: 20px;
+      max-width: 170px; /* ajuste conforme desejar */
+      height: auto;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+  <!-- Logo no canto superior direito -->
+  <img src="../logoMarca/Econtrol-w.jpg" alt="Logo" class="logo" />
+
+  <h2><img src="./imagensPagWeb/CONFIG.png" alt="Engrenagem" style="width:40px; vertical-align:middle; margin-right:8px;">Configurações de horários atuais:</h2>
+
+  <div class="box sdBox">
+     <h3>
+      <img src="./imagensPagWeb/CALENDARIO.png" alt="Calendário" style="width:30px; vertical-align:middle; margin-right:6px;">
+      Semana
+    </h3>
+    <div id="sdSemana" class="dataBox"></div>
+  </div>
+
+  <div class="box sdBox">
+    <h3>
+      <img src="./imagensPagWeb/CALENDARIO.png" alt="Calendário" style="width:30px; vertical-align:middle; margin-right:6px;">
+      Final de Semana
+    </h3>
+
+    <div id="sdFinal" class="dataBox"></div>
+  </div>
+
+  <h2>
+    <img src="./imagensPagWeb/GRAFICO.png" alt="Gráfico" style="width:30px; vertical-align:middle; margin-right:8px;">
+    Histórico dos Sensores:
+  </h2>
+
+  <div class="box dataBox" id="sensorData"></div>
+  <canvas id="sensorChart" width="600" height="300"></canvas>
+
+  <script>
+    const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
+
+    const sdSemanaDiv = document.getElementById("sdSemana");
+    const sdFinalDiv = document.getElementById("sdFinal");
+    const sensorDiv = document.getElementById("sensorData");
+
+    const labels = [];
+    const tempData = [];
+    const umidData = [];
+    const luzData = [];
+
+    const chart = new Chart(document.getElementById("sensorChart"), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Temperatura (°C)', borderColor: 'green', data: tempData, fill: false },
+          { label: 'Umidade (%)', borderColor: 'black', data: umidData, fill: false },
+          { label: 'Luz (V)', borderColor: 'orange', data: luzData, fill: false },
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: { title: { display: true, text: 'Hora' }},
+          y: { title: { display: true, text: 'Valores' }}
+        }
+      }
+    });
+
+    function criarTabelaCsv(textoCsv) {
+      const linhas = textoCsv.trim().split('\n');
+      if (linhas.length === 0) return document.createTextNode('Sem dados.');
+
+      const tabela = document.createElement('table');
+
+      // Cabeçalho fixo, com nomes bem diretos
+      const cabecalho = [
+        'Período',
+        'Hora de ligar luz',
+        'Hora de ligar ar',
+        'Hora de desligar luz',
+        'Hora de desligar ar'
+      ];
+      const trHead = document.createElement('tr');
+      cabecalho.forEach(texto => {
+        const th = document.createElement('th');
+        th.textContent = texto;
+        trHead.appendChild(th);
+      });
+      tabela.appendChild(trHead);
+
+      // Linhas de dados vindas do payload
+      linhas.forEach(linha => {
+        const tr = document.createElement('tr');
+        const colunas = linha.split(',');
+
+        colunas.forEach(coluna => {
+          const td = document.createElement('td');
+          td.textContent = coluna.trim() || '-';
+          tr.appendChild(td);
+        });
+
+        tabela.appendChild(tr);
+      });
+
+      return tabela;
+    }
+
+    client.on('connect', () => {
+      console.log("Conectado ao MQTT HiveMQ");
+      client.subscribe("projeto/sddata/semana");
+      client.subscribe("projeto/sddata/final");
+      client.subscribe("projeto/sensores");
+    });
+
+    client.on('message', (topic, message) => {
+      const payload = message.toString();
+
+      if (topic === "projeto/sddata/semana") {
+        sdSemanaDiv.innerHTML = '';
+        const tabela = criarTabelaCsv(payload);
+        sdSemanaDiv.appendChild(tabela);
+      }
+
+      if (topic === "projeto/sddata/final") {
+        sdFinalDiv.innerHTML = '';
+        const tabela = criarTabelaCsv(payload);
+        sdFinalDiv.appendChild(tabela);
+      }
+
+      if (topic === "projeto/sensores") {
+        try {
+          const dados = JSON.parse(payload);
+
+          const hora = dados.hora || new Date().toLocaleTimeString();
+          const temp = parseFloat(dados.temp);
+          const umid = parseFloat(dados.umid);
+          const luz = parseFloat(dados.luz);
+
+          if (isNaN(temp) || isNaN(umid) || isNaN(luz)) {
+            console.warn("Dados inválidos do sensor:", dados);
+            return;
+          }
+
+          sensorDiv.textContent = `Último: ${hora} | Temp: ${temp}°C | Umid: ${umid}% | Luz: ${luz}V`;
+
+          if (labels.length >= 20) {
+            labels.shift();
+            tempData.shift();
+            umidData.shift();
+            luzData.shift();
+          }
+
+          labels.push(hora);
+          tempData.push(temp);
+          umidData.push(umid);
+          luzData.push(luz);
+
+          chart.update();
+        } catch (e) {
+          console.warn("Erro ao processar dados dos sensores:", e, payload);
+        }
+      }
+    });
+  </script>
+</body>
+</html>
