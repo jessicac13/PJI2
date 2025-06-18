@@ -8,7 +8,6 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
-      position: relative;
       font-family: Arial, sans-serif;
       background: #ffffff;
       padding: 20px;
@@ -19,12 +18,9 @@
     }
     .box {
       background: #fff;
-      border: 2px solid #ffffff;
       border-radius: 10px;
       padding: 15px;
       margin-top: 10px;
-      max-height: 300px;
-      overflow-y: auto;
       box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
     }
     .sdBox h3 {
@@ -84,7 +80,19 @@
 <body>
   <img src="../logoMarca/Econtrol-w.jpg" alt="Logo" class="logo" />
 
-  <h2><img src="./imagensPagWeb/CONFIG.png" alt="Engrenagem" style="width:40px; vertical-align:middle; margin-right:8px;">Configurações de horários atuais:</h2>
+  <h2>
+    <img src="./imagensPagWeb/CONFIG.png" alt="Engrenagem" style="width:40px; vertical-align:middle; margin-right:8px;">
+    Controle Manual
+  </h2>
+  <div class="box sdBox">
+    <button id="btnLuz" onclick="alternar('luz')">Ligar Luz</button>
+    <button id="btnAr" onclick="alternar('ar')">Ligar Ar</button>
+  </div>
+
+  <h2>
+    <img src="./imagensPagWeb/CONFIG.png" alt="Engrenagem" style="width:40px; vertical-align:middle; margin-right:8px;">
+    Configurações de horários atuais:
+  </h2>
 
   <div class="box sdBox">
      <h3>
@@ -122,41 +130,38 @@
     const umidData = [];
     const luzData = [];
 
-    const chart = new Chart(document.getElementById("sensorChart"), {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [
-          { label: 'Temperatura (°C)', borderColor: 'green', data: tempData, fill: false },
-          { label: 'Umidade (%)', borderColor: 'black', data: umidData, fill: false },
-          { label: 'Luz (V)', borderColor: 'orange', data: luzData, fill: false },
-        ]
-      },
-      options: {
-        responsive: true,
-        scales: {
-          x: { title: { display: true, text: 'Data e Hora' }},
-          y: { title: { display: true, text: 'Valores' }}
-        }
+    let estadoLuz = false;
+    let estadoAr = false;
+
+    function alternar(dispositivo) {
+      let estadoAtual, btn, topico;
+
+      if (dispositivo === "luz") {
+        estadoLuz = !estadoLuz;
+        estadoAtual = estadoLuz;
+        btn = document.getElementById("btnLuz");
+        topico = "projeto/luz";
+      } else {
+        estadoAr = !estadoAr;
+        estadoAtual = estadoAr;
+        btn = document.getElementById("btnAr");
+        topico = "projeto/ar";
       }
-    });
+
+      const acao = estadoAtual ? "ligar" : "desligar";
+      client.publish(topico, acao);
+      btn.textContent = `${acao === "ligar" ? "Desligar" : "Ligar"} ${dispositivo === "luz" ? "Luz" : "Ar"}`;
+    }
 
     function criarTabelaCsv(textoCsv, tipo) {
       const linhas = textoCsv.trim().split('\n');
       if (linhas.length === 0) return document.createTextNode('Sem dados.');
 
       const container = document.createElement('div');
-
       const tabela = document.createElement('table');
       tabela.dataset.tipo = tipo;
 
-      const cabecalho = [
-        'Período',
-        'Hora de ligar luz',
-        'Hora de ligar ar',
-        'Hora de desligar luz',
-        'Hora de desligar ar'
-      ];
+      const cabecalho = ['Período','Hora de ligar luz','Hora de ligar ar','Hora de desligar luz','Hora de desligar ar'];
       const trHead = document.createElement('tr');
       cabecalho.forEach(texto => {
         const th = document.createElement('th');
@@ -168,14 +173,12 @@
       linhas.forEach(linha => {
         const tr = document.createElement('tr');
         const colunas = linha.split(',');
-
         colunas.forEach(coluna => {
           const td = document.createElement('td');
           td.textContent = coluna.trim() || '-';
           td.contentEditable = true;
           tr.appendChild(td);
         });
-
         tabela.appendChild(tr);
       });
 
@@ -190,29 +193,22 @@
     }
 
     function publicarTabela(tabela) {
-  const linhas = [];
-
-  // Cabeçalho fixo
-  linhas.push("periodo,ligarLuz,ligarAr,desligarLuz,desligarAr");
-
-  // Dados da tabela (ignorando linha do cabeçalho visual)
-  for (let i = 1; i < tabela.rows.length; i++) {
-    const row = tabela.rows[i];
-    const cols = Array.from(row.cells).map(cell => cell.textContent.trim());
-    linhas.push(cols.join(','));
-  }
-
-  const csv = linhas.join('\n');
-  const tipo = tabela.dataset.tipo;
-  const topico = tipo === 'semana' ? "projeto/sddata/semanaajustada" : "projeto/sddata/finalajustada";
-
-  client.publish(topico, csv);
-  alert(`Tabela publicada em ${topico}`);
-}
-
+      const linhas = [];
+      linhas.push("periodo,ligarLuz,ligarAr,desligarLuz,desligarAr");
+      for (let i = 1; i < tabela.rows.length; i++) {
+        const row = tabela.rows[i];
+        const cols = Array.from(row.cells).map(cell => cell.textContent.trim());
+        linhas.push(cols.join(','));
+      }
+      const csv = linhas.join('\n');
+      const tipo = tabela.dataset.tipo;
+      const topico = tipo === 'semana' ? "projeto/sddata/semanaajustada" : "projeto/sddata/finalajustada";
+      client.publish(topico, csv);
+      alert(`Tabela publicada em ${topico}`);
+    }
 
     client.on('connect', () => {
-      console.log("Conectado ao MQTT HiveMQ");
+      console.log("MQTT conectado");
       client.subscribe("projeto/sddata/semana");
       client.subscribe("projeto/sddata/final");
       client.subscribe("projeto/sensores");
@@ -233,41 +229,47 @@
         sdFinalDiv.appendChild(tabela);
       }
 
-      if (topic === "projeto/sensores") 
-      {
-        try 
-        {
+      if (topic === "projeto/sensores") {
+        try {
           const dados = JSON.parse(payload);
-          const data = dados.data || "N/A"; // Pega a data do payload
+          const data = dados.data || "N/A";
           const hora = dados.hora || new Date().toLocaleTimeString();
           const temp = parseFloat(dados.temp);
           const umid = parseFloat(dados.umid);
           const luz = parseFloat(dados.luz);
+          if (isNaN(temp) || isNaN(umid) || isNaN(luz)) return;
 
-          if (isNaN(temp) || isNaN(umid) || isNaN(luz)) 
-          {
-            console.warn("Dados inválidos do sensor:", dados);
-            return;
-          }
-
-          // Atualiza o texto para incluir a data
           sensorDiv.textContent = `Data: ${data} | Hora: ${hora} | Temp: ${temp}°C | Umid: ${umid}% | Luz: ${luz}V`;
           if (labels.length >= 20) {
-            labels.shift();
-            tempData.shift();
-            umidData.shift();
-            luzData.shift();
+            labels.shift(); tempData.shift(); umidData.shift(); luzData.shift();
           }
 
-          // Modifique a linha que atualiza os labels:
-          labels.push(`${data} ${hora}`); // Ex: "19/06/2025 08:00"
+          labels.push(`${data} ${hora}`);
           tempData.push(temp);
           umidData.push(umid);
           luzData.push(luz);
-
           chart.update();
         } catch (e) {
           console.warn("Erro ao processar dados dos sensores:", e, payload);
+        }
+      }
+    });
+
+    const chart = new Chart(document.getElementById("sensorChart"), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Temperatura (°C)', borderColor: 'green', data: tempData, fill: false },
+          { label: 'Umidade (%)', borderColor: 'black', data: umidData, fill: false },
+          { label: 'Luz (V)', borderColor: 'orange', data: luzData, fill: false },
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: { title: { display: true, text: 'Data e Hora' }},
+          y: { title: { display: true, text: 'Valores' }}
         }
       }
     });
