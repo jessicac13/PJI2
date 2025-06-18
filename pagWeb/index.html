@@ -8,7 +8,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
-      position: relative; /* Para posicionamento da logo */
+      position: relative;
       font-family: Arial, sans-serif;
       background: #ffffff;
       padding: 20px;
@@ -26,9 +26,6 @@
       max-height: 300px;
       overflow-y: auto;
       box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
-    }
-    .sdBox {
-      background-color: #ffffff;
     }
     .sdBox h3 {
       color: #000000;
@@ -53,25 +50,38 @@
       background-color: #36890f;
       color: #ffffff;
     }
+    td {
+      background-color: #f9fff9;
+    }
     canvas {
       background: #ffffff;
       border-radius: 8px;
       margin-top: 20px;
       box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
     }
-    /* Logo posicionada no canto superior direito */
     .logo {
       position: absolute;
       top: 1px;
       right: 20px;
-      max-width: 170px; /* ajuste conforme desejar */
+      max-width: 170px;
       height: auto;
       z-index: 1000;
+    }
+    button {
+      margin-top: 10px;
+      padding: 6px 12px;
+      border: none;
+      background-color: #36890f;
+      color: white;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #2d6f0d;
     }
   </style>
 </head>
 <body>
-  <!-- Logo no canto superior direito -->
   <img src="../logoMarca/Econtrol-w.jpg" alt="Logo" class="logo" />
 
   <h2><img src="./imagensPagWeb/CONFIG.png" alt="Engrenagem" style="width:40px; vertical-align:middle; margin-right:8px;">Configurações de horários atuais:</h2>
@@ -89,7 +99,6 @@
       <img src="./imagensPagWeb/CALENDARIO.png" alt="Calendário" style="width:30px; vertical-align:middle; margin-right:6px;">
       Final de Semana
     </h3>
-
     <div id="sdFinal" class="dataBox"></div>
   </div>
 
@@ -132,13 +141,15 @@
       }
     });
 
-    function criarTabelaCsv(textoCsv) {
+    function criarTabelaCsv(textoCsv, tipo) {
       const linhas = textoCsv.trim().split('\n');
       if (linhas.length === 0) return document.createTextNode('Sem dados.');
 
-      const tabela = document.createElement('table');
+      const container = document.createElement('div');
 
-      // Cabeçalho fixo, com nomes bem diretos
+      const tabela = document.createElement('table');
+      tabela.dataset.tipo = tipo;
+
       const cabecalho = [
         'Período',
         'Hora de ligar luz',
@@ -154,7 +165,6 @@
       });
       tabela.appendChild(trHead);
 
-      // Linhas de dados vindas do payload
       linhas.forEach(linha => {
         const tr = document.createElement('tr');
         const colunas = linha.split(',');
@@ -162,14 +172,44 @@
         colunas.forEach(coluna => {
           const td = document.createElement('td');
           td.textContent = coluna.trim() || '-';
+          td.contentEditable = true;
           tr.appendChild(td);
         });
 
         tabela.appendChild(tr);
       });
 
-      return tabela;
+      container.appendChild(tabela);
+
+      const botao = document.createElement('button');
+      botao.textContent = 'Salvar alterações';
+      botao.onclick = () => publicarTabela(tabela);
+      container.appendChild(botao);
+
+      return container;
     }
+
+    function publicarTabela(tabela) {
+  const linhas = [];
+
+  // Cabeçalho fixo
+  linhas.push("periodo,ligarLuz,ligarAr,desligarLuz,desligarAr");
+
+  // Dados da tabela (ignorando linha do cabeçalho visual)
+  for (let i = 1; i < tabela.rows.length; i++) {
+    const row = tabela.rows[i];
+    const cols = Array.from(row.cells).map(cell => cell.textContent.trim());
+    linhas.push(cols.join(','));
+  }
+
+  const csv = linhas.join('\n');
+  const tipo = tabela.dataset.tipo;
+  const topico = tipo === 'semana' ? "projeto/sddata/semanaajustada" : "projeto/sddata/finalajustada";
+
+  client.publish(topico, csv);
+  alert(`Tabela publicada em ${topico}`);
+}
+
 
     client.on('connect', () => {
       console.log("Conectado ao MQTT HiveMQ");
@@ -183,13 +223,13 @@
 
       if (topic === "projeto/sddata/semana") {
         sdSemanaDiv.innerHTML = '';
-        const tabela = criarTabelaCsv(payload);
+        const tabela = criarTabelaCsv(payload, 'semana');
         sdSemanaDiv.appendChild(tabela);
       }
 
       if (topic === "projeto/sddata/final") {
         sdFinalDiv.innerHTML = '';
-        const tabela = criarTabelaCsv(payload);
+        const tabela = criarTabelaCsv(payload, 'final');
         sdFinalDiv.appendChild(tabela);
       }
 
