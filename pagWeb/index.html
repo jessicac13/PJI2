@@ -135,7 +135,7 @@
       options: {
         responsive: true,
         scales: {
-          x: { title: { display: true, text: 'Hora' }},
+          x: { title: { display: true, text: 'Data e Hora' }},
           y: { title: { display: true, text: 'Valores' }}
         }
       }
@@ -233,22 +233,25 @@
         sdFinalDiv.appendChild(tabela);
       }
 
-      if (topic === "projeto/sensores") {
-        try {
+      if (topic === "projeto/sensores") 
+      {
+        try 
+        {
           const dados = JSON.parse(payload);
-
+          const data = dados.data || "N/A"; // Pega a data do payload
           const hora = dados.hora || new Date().toLocaleTimeString();
           const temp = parseFloat(dados.temp);
           const umid = parseFloat(dados.umid);
           const luz = parseFloat(dados.luz);
 
-          if (isNaN(temp) || isNaN(umid) || isNaN(luz)) {
+          if (isNaN(temp) || isNaN(umid) || isNaN(luz)) 
+          {
             console.warn("Dados inválidos do sensor:", dados);
             return;
           }
 
-          sensorDiv.textContent = `Último: ${hora} | Temp: ${temp}°C | Umid: ${umid}% | Luz: ${luz}V`;
-
+          // Atualiza o texto para incluir a data
+          sensorDiv.textContent = `Data: ${data} | Hora: ${hora} | Temp: ${temp}°C | Umid: ${umid}% | Luz: ${luz}V`;
           if (labels.length >= 20) {
             labels.shift();
             tempData.shift();
@@ -256,7 +259,8 @@
             luzData.shift();
           }
 
-          labels.push(hora);
+          // Modifique a linha que atualiza os labels:
+          labels.push(`${data} ${hora}`); // Ex: "19/06/2025 08:00"
           tempData.push(temp);
           umidData.push(umid);
           luzData.push(luz);
