@@ -73,12 +73,46 @@
       cursor: pointer;
     }
     button:hover {
-      background-color: #2d6f0d;
+      background-color: #36890f;
+    }
+
+    #telaLogin {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background-color: #ffffff; /* nova cor de fundo */
+    padding: 20px;
+    }
+
+    #telaLogin input {
+      margin: 5px;
+      padding: 6px;
+    }
+    #erroLogin {
+      color: red;
+      display: none;
     }
   </style>
 </head>
 <body>
-  <img src="../logoMarca/Econtrol-w.jpg" alt="Logo" class="logo" />
+
+<!-- LOGO FIXA -->
+<img src="../logoMarca/Econtrol-w-removebg-preview.png" alt="Logo" class="logo" />
+
+<!-- TELA DE LOGIN -->
+<div id="telaLogin">
+  <h2>Login</h2>
+  <input type="text" id="usuario" placeholder="Usuário">
+  <input type="password" id="senha" placeholder="Senha">
+  <button onclick="validarLogin()">Entrar</button>
+  <p id="erroLogin">Usuário ou senha incorretos</p>
+</div>
+
+<!-- CONTEÚDO PRINCIPAL -->
+<div id="paginaPrincipal" style="display:none;">
+ 
 
   <h2>
     <img src="./imagensPagWeb/CONFIG.png" alt="Engrenagem" style="width:40px; vertical-align:middle; margin-right:8px;">
@@ -95,7 +129,7 @@
   </h2>
 
   <div class="box sdBox">
-     <h3>
+    <h3>
       <img src="./imagensPagWeb/CALENDARIO.png" alt="Calendário" style="width:30px; vertical-align:middle; margin-right:6px;">
       Semana
     </h3>
@@ -117,162 +151,175 @@
 
   <div class="box dataBox" id="sensorData"></div>
   <canvas id="sensorChart" width="600" height="300"></canvas>
+</div>
 
-  <script>
-    const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
+<!-- SCRIPTS -->
+<script>
+  function validarLogin() {
+    const usuario = document.getElementById('usuario').value;
+    const senha = document.getElementById('senha').value;
+    if (usuario === 'configESP32' && senha === 'projetointegrador2') {
+      document.getElementById('telaLogin').style.display = 'none';
+      document.getElementById('paginaPrincipal').style.display = 'block';
+    } else {
+      document.getElementById('erroLogin').style.display = 'block';
+    }
+  }
 
-    const sdSemanaDiv = document.getElementById("sdSemana");
-    const sdFinalDiv = document.getElementById("sdFinal");
-    const sensorDiv = document.getElementById("sensorData");
+  const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
 
-    const labels = [];
-    const tempData = [];
-    const umidData = [];
-    const luzData = [];
+  const sdSemanaDiv = document.getElementById("sdSemana");
+  const sdFinalDiv = document.getElementById("sdFinal");
+  const sensorDiv = document.getElementById("sensorData");
 
-    let estadoLuz = false;
-    let estadoAr = false;
+  const labels = [];
+  const tempData = [];
+  const umidData = [];
+  const luzData = [];
 
-    function alternar(dispositivo) {
-      let estadoAtual, btn, topico;
+  let estadoLuz = false;
+  let estadoAr = false;
 
-      if (dispositivo === "luz") {
-        estadoLuz = !estadoLuz;
-        estadoAtual = estadoLuz;
-        btn = document.getElementById("btnLuz");
-        topico = "projeto/luz";
-      } else {
-        estadoAr = !estadoAr;
-        estadoAtual = estadoAr;
-        btn = document.getElementById("btnAr");
-        topico = "projeto/ar";
-      }
+  function alternar(dispositivo) {
+    let estadoAtual, btn, topico;
 
-      const acao = estadoAtual ? "ligar" : "desligar";
-      client.publish(topico, acao);
-      btn.textContent = `${acao === "ligar" ? "Desligar" : "Ligar"} ${dispositivo === "luz" ? "Luz" : "Ar"}`;
+    if (dispositivo === "luz") {
+      estadoLuz = !estadoLuz;
+      estadoAtual = estadoLuz;
+      btn = document.getElementById("btnLuz");
+      topico = "projeto/luz";
+    } else {
+      estadoAr = !estadoAr;
+      estadoAtual = estadoAr;
+      btn = document.getElementById("btnAr");
+      topico = "projeto/ar";
     }
 
-    function criarTabelaCsv(textoCsv, tipo) {
-      const linhas = textoCsv.trim().split('\n');
-      if (linhas.length === 0) return document.createTextNode('Sem dados.');
+    const acao = estadoAtual ? "ligar" : "desligar";
+    client.publish(topico, acao);
+    btn.textContent = `${acao === "ligar" ? "Desligar" : "Ligar"} ${dispositivo === "luz" ? "Luz" : "Ar"}`;
+  }
 
-      const container = document.createElement('div');
-      const tabela = document.createElement('table');
-      tabela.dataset.tipo = tipo;
+  function criarTabelaCsv(textoCsv, tipo) {
+    const linhas = textoCsv.trim().split('\n');
+    if (linhas.length === 0) return document.createTextNode('Sem dados.');
 
-      const cabecalho = ['Período','Hora de ligar luz','Hora de ligar ar','Hora de desligar luz','Hora de desligar ar'];
-      const trHead = document.createElement('tr');
-      cabecalho.forEach(texto => {
-        const th = document.createElement('th');
-        th.textContent = texto;
-        trHead.appendChild(th);
+    const container = document.createElement('div');
+    const tabela = document.createElement('table');
+    tabela.dataset.tipo = tipo;
+
+    const cabecalho = ['Período','Hora de ligar luz','Hora de ligar ar','Hora de desligar luz','Hora de desligar ar'];
+    const trHead = document.createElement('tr');
+    cabecalho.forEach(texto => {
+      const th = document.createElement('th');
+      th.textContent = texto;
+      trHead.appendChild(th);
+    });
+    tabela.appendChild(trHead);
+
+    linhas.forEach(linha => {
+      const tr = document.createElement('tr');
+      const colunas = linha.split(',');
+      colunas.forEach(coluna => {
+        const td = document.createElement('td');
+        td.textContent = coluna.trim() || '-';
+        td.contentEditable = true;
+        tr.appendChild(td);
       });
-      tabela.appendChild(trHead);
+      tabela.appendChild(tr);
+    });
 
-      linhas.forEach(linha => {
-        const tr = document.createElement('tr');
-        const colunas = linha.split(',');
-        colunas.forEach(coluna => {
-          const td = document.createElement('td');
-          td.textContent = coluna.trim() || '-';
-          td.contentEditable = true;
-          tr.appendChild(td);
-        });
-        tabela.appendChild(tr);
-      });
+    container.appendChild(tabela);
 
-      container.appendChild(tabela);
+    const botao = document.createElement('button');
+    botao.textContent = 'Salvar alterações';
+    botao.onclick = () => publicarTabela(tabela);
+    container.appendChild(botao);
 
-      const botao = document.createElement('button');
-      botao.textContent = 'Salvar alterações';
-      botao.onclick = () => publicarTabela(tabela);
-      container.appendChild(botao);
+    return container;
+  }
 
-      return container;
+  function publicarTabela(tabela) {
+    const linhas = [];
+    linhas.push("periodo,ligarLuz,ligarAr,desligarLuz,desligarAr");
+    for (let i = 1; i < tabela.rows.length; i++) {
+      const row = tabela.rows[i];
+      const cols = Array.from(row.cells).map(cell => cell.textContent.trim());
+      linhas.push(cols.join(','));
+    }
+    const csv = linhas.join('\n');
+    const tipo = tabela.dataset.tipo;
+    const topico = tipo === 'semana' ? "projeto/sddata/semanaajustada" : "projeto/sddata/finalajustada";
+    client.publish(topico, csv);
+    alert(`Tabela publicada em ${topico}`);
+  }
+
+  client.on('connect', () => {
+    console.log("MQTT conectado");
+    client.subscribe("projeto/sddata/semana");
+    client.subscribe("projeto/sddata/final");
+    client.subscribe("projeto/sensores");
+  });
+
+  client.on('message', (topic, message) => {
+    const payload = message.toString();
+
+    if (topic === "projeto/sddata/semana") {
+      sdSemanaDiv.innerHTML = '';
+      const tabela = criarTabelaCsv(payload, 'semana');
+      sdSemanaDiv.appendChild(tabela);
     }
 
-    function publicarTabela(tabela) {
-      const linhas = [];
-      linhas.push("periodo,ligarLuz,ligarAr,desligarLuz,desligarAr");
-      for (let i = 1; i < tabela.rows.length; i++) {
-        const row = tabela.rows[i];
-        const cols = Array.from(row.cells).map(cell => cell.textContent.trim());
-        linhas.push(cols.join(','));
-      }
-      const csv = linhas.join('\n');
-      const tipo = tabela.dataset.tipo;
-      const topico = tipo === 'semana' ? "projeto/sddata/semanaajustada" : "projeto/sddata/finalajustada";
-      client.publish(topico, csv);
-      alert(`Tabela publicada em ${topico}`);
+    if (topic === "projeto/sddata/final") {
+      sdFinalDiv.innerHTML = '';
+      const tabela = criarTabelaCsv(payload, 'final');
+      sdFinalDiv.appendChild(tabela);
     }
 
-    client.on('connect', () => {
-      console.log("MQTT conectado");
-      client.subscribe("projeto/sddata/semana");
-      client.subscribe("projeto/sddata/final");
-      client.subscribe("projeto/sensores");
-    });
+    if (topic === "projeto/sensores") {
+      try {
+        const dados = JSON.parse(payload);
+        const data = dados.data || "N/A";
+        const hora = dados.hora || new Date().toLocaleTimeString();
+        const temp = parseFloat(dados.temp);
+        const umid = parseFloat(dados.umid);
+        const luz = parseFloat(dados.luz);
+        if (isNaN(temp) || isNaN(umid) || isNaN(luz)) return;
 
-    client.on('message', (topic, message) => {
-      const payload = message.toString();
-
-      if (topic === "projeto/sddata/semana") {
-        sdSemanaDiv.innerHTML = '';
-        const tabela = criarTabelaCsv(payload, 'semana');
-        sdSemanaDiv.appendChild(tabela);
-      }
-
-      if (topic === "projeto/sddata/final") {
-        sdFinalDiv.innerHTML = '';
-        const tabela = criarTabelaCsv(payload, 'final');
-        sdFinalDiv.appendChild(tabela);
-      }
-
-      if (topic === "projeto/sensores") {
-        try {
-          const dados = JSON.parse(payload);
-          const data = dados.data || "N/A";
-          const hora = dados.hora || new Date().toLocaleTimeString();
-          const temp = parseFloat(dados.temp);
-          const umid = parseFloat(dados.umid);
-          const luz = parseFloat(dados.luz);
-          if (isNaN(temp) || isNaN(umid) || isNaN(luz)) return;
-
-          sensorDiv.textContent = `Data: ${data} | Hora: ${hora} | Temp: ${temp}°C | Umid: ${umid}% | Luz: ${luz}V`;
-          if (labels.length >= 20) {
-            labels.shift(); tempData.shift(); umidData.shift(); luzData.shift();
-          }
-
-          labels.push(`${data} ${hora}`);
-          tempData.push(temp);
-          umidData.push(umid);
-          luzData.push(luz);
-          chart.update();
-        } catch (e) {
-          console.warn("Erro ao processar dados dos sensores:", e, payload);
+        sensorDiv.textContent = `Data: ${data} | Hora: ${hora} | Temp: ${temp}°C | Umid: ${umid}% | Luz: ${luz}V`;
+        if (labels.length >= 20) {
+          labels.shift(); tempData.shift(); umidData.shift(); luzData.shift();
         }
-      }
-    });
 
-    const chart = new Chart(document.getElementById("sensorChart"), {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [
-          { label: 'Temperatura (°C)', borderColor: 'green', data: tempData, fill: false },
-          { label: 'Umidade (%)', borderColor: 'black', data: umidData, fill: false },
-          { label: 'Luz (V)', borderColor: 'orange', data: luzData, fill: false },
-        ]
-      },
-      options: {
-        responsive: true,
-        scales: {
-          x: { title: { display: true, text: 'Data e Hora' }},
-          y: { title: { display: true, text: 'Valores' }}
-        }
+        labels.push(`${data} ${hora}`);
+        tempData.push(temp);
+        umidData.push(umid);
+        luzData.push(luz);
+        chart.update();
+      } catch (e) {
+        console.warn("Erro ao processar dados dos sensores:", e, payload);
       }
-    });
-  </script>
+    }
+  });
+
+  const chart = new Chart(document.getElementById("sensorChart"), {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        { label: 'Temperatura (°C)', borderColor: 'green', data: tempData, fill: false },
+        { label: 'Umidade (%)', borderColor: 'black', data: umidData, fill: false },
+        { label: 'Luz (V)', borderColor: 'orange', data: luzData, fill: false },
+      ]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: { title: { display: true, text: 'Data e Hora' }},
+        y: { title: { display: true, text: 'Valores' }}
+      }
+    }
+  });
+</script>
 </body>
 </html>
